@@ -1,7 +1,8 @@
 fastapi
 uvicorn
+python-jose
 boto3
-python-jose[cryptography]
-python-multipart
-passlib[bcrypt]
 requests
+passlib[bcrypt]
+python-multipart
+PyJWT
