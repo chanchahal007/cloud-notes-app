@@ -1,25 +1,35 @@
 import requests
-from jose import jwt
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import jwt
+from jwt.algorithms import RSAAlgorithm
+from fastapi import HTTPException
 
-AWS_REGION = "your-region"
-COGNITO_USER_POOL_ID = "your-user-pool-id"
+COGNITO_REGION = "us-east-1"
+USER_POOL_ID = "us-east-1_NYIMPnqNU"
+CLIENT_ID = "6miqrdeqj5giaomrdl3ft0d0l3"
 
-# Token validator
-cognito_jwks_url = f"https://cognito-idp.{AWS_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
+
+cognito_issuer = f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/{USER_POOL_ID}"
+cognito_jwks_url = f"{cognito_issuer}/.well-known/jwks.json"
+
 jwks = requests.get(cognito_jwks_url).json()
 
-security = HTTPBearer()
-
-def verify_jwt_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
+def verify_jwt_token(token: str):
     try:
-        unverified_header = jwt.get_unverified_header(token)
-        key = next((k for k in jwks["keys"] if k["kid"] == unverified_header["kid"]), None)
-        if not key:
-            raise HTTPException(status_code=401, detail="Invalid token header")
-        payload = jwt.decode(token, key, algorithms=["RS256"], audience=None, issuer=f"https://cognito-idp.{AWS_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}")
-        return payload  # You can return username or email from payload
+        headers = jwt.get_unverified_header(token)
+        kid = headers["kid"]
+
+        key = next((k for k in jwks["keys"] if k["kid"] == kid), None)
+        if key is None:
+            raise HTTPException(status_code=401, detail="Invalid token: key not found")
+
+        public_key = RSAAlgorithm.from_jwk(key)
+        decoded = jwt.decode(
+            token,
+            public_key,
+            algorithms=["RS256"],
+            audience=CLIENT_ID,
+            issuer=cognito_issuer,
+        )
+        return decoded
     except Exception as e:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        raise HTTPException(status_code=401, detail=str(e))
